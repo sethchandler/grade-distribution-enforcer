@@ -299,7 +299,8 @@
                 <div class="section-title">✅ Results</div>
                 <div id="resultsContent"></div>
                 <div class="download-section">
-                    <button class="btn" id="downloadBtn">Download Results</button>
+                    <button class="btn" id="downloadBtn">Download Results (Excel/CSV)</button>
+                    <button class="btn" id="downloadReportBtn" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">Download Report (PDF-style Text)</button>
                 </div>
             </div>
         </div>
@@ -312,6 +313,7 @@
         const fileInput = document.getElementById('fileInput');
         const generateBtn = document.getElementById('generateBtn');
         const downloadBtn = document.getElementById('downloadBtn');
+        const downloadReportBtn = document.getElementById('downloadReportBtn');
         const statusDiv = document.getElementById('status');
         const resultsDiv = document.getElementById('results');
         const resultsContent = document.getElementById('resultsContent');
@@ -319,6 +321,7 @@
         fileInput.addEventListener('change', handleFileUpload);
         generateBtn.addEventListener('click', generateDistributions);
         downloadBtn.addEventListener('click', downloadResults);
+        downloadReportBtn.addEventListener('click', downloadReport);
 
         function showStatus(message, type) {
             statusDiv.textContent = message;
@@ -714,7 +717,55 @@
         }
 
         function displayResults(result) {
-            let html = '<div class="grid">';
+            let html = '<div style="margin-bottom: 30px;">';
+            html += '<h3 style="color: #667eea;">Summary Statistics</h3>';
+            html += '<table class="results-table" style="margin-bottom: 20px;">';
+            html += '<thead><tr>';
+            html += '<th>Distribution</th>';
+            html += '<th>Mean Grade</th>';
+            html += '<th>Mean Status</th>';
+            html += '<th>A (4.0) %</th>';
+            html += '<th>Middle %</th>';
+            html += '<th>Low %</th>';
+            html += '<th>Min Gap</th>';
+            html += '</tr></thead><tbody>';
+            
+            result.distributions.forEach((dist, idx) => {
+                const distribution = getDistribution(dist.gradeAssignment, 
+                    result.data.reduce((acc, d) => {
+                        acc[d.raw_score] = (acc[d.raw_score] || 0) + 1;
+                        return acc;
+                    }, {}), 
+                    result.metadata.totalStudents);
+                
+                const pctA = ((distribution[4.0] || 0) * 100).toFixed(1);
+                const pctMiddle = (((distribution[3.0] || 0) + (distribution[3.33] || 0) + (distribution[3.67] || 0)) * 100).toFixed(1);
+                const pctLow = (Object.keys(distribution).reduce((sum, grade) => {
+                    return parseFloat(grade) <= 2.67 ? sum + distribution[grade] : sum;
+                }, 0) * 100).toFixed(1);
+                
+                const checkMean = dist.actualMean >= 3.2 && dist.actualMean <= 3.4 ? '✓ Pass' : '✗ Fail';
+                const checkA = pctA >= 5 && pctA <= 30 ? '✓' : '✗';
+                const checkMiddle = pctMiddle >= 50 && pctMiddle <= 90 ? '✓' : '✗';
+                const checkLow = pctLow >= 5 && pctLow <= 20 ? '✓' : '✗';
+                
+                const meanColor = dist.actualMean >= 3.2 && dist.actualMean <= 3.4 ? '#28a745' : '#dc3545';
+                
+                html += `<tr>
+                    <td><strong>${idx + 1}</strong></td>
+                    <td>${dist.actualMean.toFixed(4)}</td>
+                    <td style="color: ${meanColor}; font-weight: bold;">${checkMean}</td>
+                    <td>${pctA}% ${checkA}</td>
+                    <td>${pctMiddle}% ${checkMiddle}</td>
+                    <td>${pctLow}% ${checkLow}</td>
+                    <td>${dist.minGap.toFixed(2)}</td>
+                </tr>`;
+            });
+            
+            html += '</tbody></table></div>';
+            
+            // Detailed breakdown for each distribution
+            html += '<div class="grid">';
             
             result.distributions.forEach((dist, idx) => {
                 const distribution = getDistribution(dist.gradeAssignment, 
@@ -739,13 +790,24 @@
                     <div class="card">
                         <h4>Distribution ${idx + 1}</h4>
                         <p><strong>Mean:</strong> ${dist.actualMean.toFixed(4)} ${checkMean}</p>
-                        <p><strong>Deviation:</strong> ${dist.meanDeviation.toFixed(4)}</p>
+                        <p><strong>Deviation from target:</strong> ${dist.meanDeviation.toFixed(4)}</p>
                         <p><strong>Min Gap:</strong> ${dist.minGap.toFixed(2)}</p>
-                        <p><strong>A (4.0):</strong> ${pctA}% ${checkA}</p>
-                        <p><strong>Middle:</strong> ${pctMiddle}% ${checkMiddle}</p>
-                        <p><strong>Low:</strong> ${pctLow}% ${checkLow}</p>
-                    </div>
+                        <p style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd;"><strong>Grade Distribution:</strong></p>
+                        <p style="font-size: 0.9em;">A (4.0): ${pctA}% ${checkA}</p>
+                        <p style="font-size: 0.9em;">Middle (3.0-3.67): ${pctMiddle}% ${checkMiddle}</p>
+                        <p style="font-size: 0.9em;">Low (≤2.67): ${pctLow}% ${checkLow}</p>
+                        <p style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd;"><strong>Detailed Breakdown:</strong></p>
                 `;
+                
+                // Show count for each grade
+                const sortedGrades = Object.keys(distribution).map(g => parseFloat(g)).sort((a, b) => b - a);
+                sortedGrades.forEach(grade => {
+                    const count = Math.round(distribution[grade] * result.metadata.totalStudents);
+                    const pct = (distribution[grade] * 100).toFixed(1);
+                    html += `<p style="font-size: 0.85em; margin: 2px 0;">Grade ${grade.toFixed(2)}: ${count} students (${pct}%)</p>`;
+                });
+                
+                html += `</div>`;
             });
             
             html += '</div>';
@@ -792,9 +854,98 @@
         }
 
         function downloadExcel() {
-            const ws = XLSX.utils.json_to_sheet(generatedResults.data);
             const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, 'Grade Distributions');
+            
+            // Main data sheet
+            const ws_data = XLSX.utils.json_to_sheet(generatedResults.data);
+            XLSX.utils.book_append_sheet(wb, ws_data, 'Grade Distributions');
+            
+            // Summary sheet
+            const desiredMean = parseFloat(document.getElementById('desiredMean').value);
+            const summaryData = [];
+            
+            // Header info
+            summaryData.push(['GRADE DISTRIBUTION ANALYSIS REPORT']);
+            summaryData.push(['']);
+            summaryData.push(['Date Generated:', new Date().toLocaleString()]);
+            summaryData.push(['Total Students:', generatedResults.metadata.totalStudents]);
+            summaryData.push(['Unique Raw Scores:', generatedResults.metadata.uniqueScores]);
+            summaryData.push(['Raw Score Range:', `${generatedResults.metadata.scoreRange[0].toFixed(2)} - ${generatedResults.metadata.scoreRange[1].toFixed(2)}`]);
+            summaryData.push(['Target Mean Grade:', desiredMean.toFixed(2)]);
+            summaryData.push(['']);
+            
+            // Constraints
+            summaryData.push(['GRADING CONSTRAINTS']);
+            summaryData.push(['A (4.0) percentage:', '5% - 30%']);
+            summaryData.push(['Middle grades (3.0-3.67) percentage:', '50% - 90%']);
+            summaryData.push(['Low grades (≤2.67) percentage:', '5% - 20%']);
+            summaryData.push(['Mean grade:', '3.20 - 3.40']);
+            summaryData.push(['']);
+            
+            // Summary table header
+            summaryData.push(['SUMMARY OF ALL DISTRIBUTIONS']);
+            summaryData.push(['Distribution', 'Mean Grade', 'Deviation', 'A %', 'Middle %', 'Low %', 'Min Gap', 'Mean OK', 'A% OK', 'Mid% OK', 'Low% OK']);
+            
+            generatedResults.distributions.forEach((dist, idx) => {
+                const distribution = getDistribution(dist.gradeAssignment, 
+                    generatedResults.data.reduce((acc, d) => {
+                        acc[d.raw_score] = (acc[d.raw_score] || 0) + 1;
+                        return acc;
+                    }, {}), 
+                    generatedResults.metadata.totalStudents);
+                
+                const pctA = ((distribution[4.0] || 0) * 100);
+                const pctMiddle = (((distribution[3.0] || 0) + (distribution[3.33] || 0) + (distribution[3.67] || 0)) * 100);
+                const pctLow = (Object.keys(distribution).reduce((sum, grade) => {
+                    return parseFloat(grade) <= 2.67 ? sum + distribution[grade] : sum;
+                }, 0) * 100);
+                
+                const checkMean = dist.actualMean >= 3.2 && dist.actualMean <= 3.4 ? 'PASS' : 'FAIL';
+                const checkA = pctA >= 5 && pctA <= 30 ? 'PASS' : 'FAIL';
+                const checkMiddle = pctMiddle >= 50 && pctMiddle <= 90 ? 'PASS' : 'FAIL';
+                const checkLow = pctLow >= 5 && pctLow <= 20 ? 'PASS' : 'FAIL';
+                
+                summaryData.push([
+                    idx + 1,
+                    dist.actualMean.toFixed(4),
+                    dist.meanDeviation.toFixed(4),
+                    pctA.toFixed(1) + '%',
+                    pctMiddle.toFixed(1) + '%',
+                    pctLow.toFixed(1) + '%',
+                    dist.minGap.toFixed(2),
+                    checkMean,
+                    checkA,
+                    checkMiddle,
+                    checkLow
+                ]);
+            });
+            
+            summaryData.push(['']);
+            
+            // Detailed breakdown for each distribution
+            generatedResults.distributions.forEach((dist, idx) => {
+                const distribution = getDistribution(dist.gradeAssignment, 
+                    generatedResults.data.reduce((acc, d) => {
+                        acc[d.raw_score] = (acc[d.raw_score] || 0) + 1;
+                        return acc;
+                    }, {}), 
+                    generatedResults.metadata.totalStudents);
+                
+                summaryData.push(['']);
+                summaryData.push([`DISTRIBUTION ${idx + 1} - DETAILED BREAKDOWN`]);
+                summaryData.push(['Grade', 'Count', 'Percentage']);
+                
+                const sortedGrades = Object.keys(distribution).map(g => parseFloat(g)).sort((a, b) => b - a);
+                sortedGrades.forEach(grade => {
+                    const count = Math.round(distribution[grade] * generatedResults.metadata.totalStudents);
+                    const pct = (distribution[grade] * 100).toFixed(1) + '%';
+                    summaryData.push([grade.toFixed(2), count, pct]);
+                });
+            });
+            
+            const ws_summary = XLSX.utils.aoa_to_sheet(summaryData);
+            XLSX.utils.book_append_sheet(wb, ws_summary, 'Summary Report');
+            
             XLSX.writeFile(wb, 'grade_distributions.xlsx');
         }
 
@@ -805,6 +956,203 @@
             const url = URL.createObjectURL(blob);
             link.setAttribute('href', url);
             link.setAttribute('download', 'grade_distributions.csv');
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function downloadReport() {
+            if (!generatedResults) return;
+            
+            const desiredMean = parseFloat(document.getElementById('desiredMean').value);
+            let report = '';
+            
+            // Header
+            report += '='.repeat(80) + '\n';
+            report += 'GRADE DISTRIBUTION ANALYSIS REPORT\n';
+            report += '='.repeat(80) + '\n\n';
+            
+            // Metadata
+            report += `Date Generated: ${new Date().toLocaleString()}\n`;
+            report += `Total Students: ${generatedResults.metadata.totalStudents}\n`;
+            report += `Unique Raw Scores: ${generatedResults.metadata.uniqueScores}\n`;
+            report += `Raw Score Range: ${generatedResults.metadata.scoreRange[0].toFixed(2)} - ${generatedResults.metadata.scoreRange[1].toFixed(2)}\n`;
+            report += `Target Mean Grade: ${desiredMean.toFixed(2)}\n`;
+            report += `Number of Distributions Generated: ${generatedResults.distributions.length}\n\n`;
+            
+            // Constraints
+            report += '='.repeat(80) + '\n';
+            report += 'GRADING CONSTRAINTS\n';
+            report += '='.repeat(80) + '\n\n';
+            report += 'All distributions must satisfy:\n';
+            report += '  • A (4.0) percentage: 5% - 30%\n';
+            report += '  • Middle grades (3.0-3.67) percentage: 50% - 90%\n';
+            report += '  • Low grades (≤2.67) percentage: 5% - 20%\n';
+            report += '  • Mean grade: 3.20 - 3.40\n';
+            report += '  • Monotonicity: Higher raw scores receive higher or equal grades\n';
+            report += '  • Consistency: Identical raw scores receive identical grades\n\n';
+            
+            // Summary table
+            report += '='.repeat(80) + '\n';
+            report += 'SUMMARY OF ALL DISTRIBUTIONS\n';
+            report += '='.repeat(80) + '\n\n';
+            report += 'Dist | Mean Grade | Deviation | A %   | Middle % | Low %  | Min Gap | Status\n';
+            report += '-'.repeat(80) + '\n';
+            
+            generatedResults.distributions.forEach((dist, idx) => {
+                const distribution = getDistribution(dist.gradeAssignment, 
+                    generatedResults.data.reduce((acc, d) => {
+                        acc[d.raw_score] = (acc[d.raw_score] || 0) + 1;
+                        return acc;
+                    }, {}), 
+                    generatedResults.metadata.totalStudents);
+                
+                const pctA = ((distribution[4.0] || 0) * 100).toFixed(1);
+                const pctMiddle = (((distribution[3.0] || 0) + (distribution[3.33] || 0) + (distribution[3.67] || 0)) * 100).toFixed(1);
+                const pctLow = (Object.keys(distribution).reduce((sum, grade) => {
+                    return parseFloat(grade) <= 2.67 ? sum + distribution[grade] : sum;
+                }, 0) * 100).toFixed(1);
+                
+                const allPass = (
+                    dist.actualMean >= 3.2 && dist.actualMean <= 3.4 &&
+                    pctA >= 5 && pctA <= 30 &&
+                    pctMiddle >= 50 && pctMiddle <= 90 &&
+                    pctLow >= 5 && pctLow <= 20
+                );
+                
+                report += `  ${idx + 1}  | ${dist.actualMean.toFixed(4).padEnd(10)} | ${dist.meanDeviation.toFixed(4).padEnd(9)} | ${pctA.padEnd(5)} | ${pctMiddle.padEnd(8)} | ${pctLow.padEnd(6)} | ${dist.minGap.toFixed(2).padEnd(7)} | ${allPass ? 'PASS' : 'FAIL'}\n`;
+            });
+            
+            report += '\n';
+            
+            // Detailed analysis for each distribution
+            generatedResults.distributions.forEach((dist, idx) => {
+                report += '='.repeat(80) + '\n';
+                report += `DISTRIBUTION ${idx + 1} - DETAILED ANALYSIS\n`;
+                report += '='.repeat(80) + '\n\n';
+                
+                const distribution = getDistribution(dist.gradeAssignment, 
+                    generatedResults.data.reduce((acc, d) => {
+                        acc[d.raw_score] = (acc[d.raw_score] || 0) + 1;
+                        return acc;
+                    }, {}), 
+                    generatedResults.metadata.totalStudents);
+                
+                // Overall metrics
+                report += 'OVERALL METRICS:\n';
+                report += '-'.repeat(80) + '\n';
+                report += `Mean Grade: ${dist.actualMean.toFixed(4)}\n`;
+                report += `Deviation from Target (${desiredMean.toFixed(2)}): ${dist.meanDeviation.toFixed(4)}\n`;
+                report += `Minimum Gap Between Grade Boundaries: ${dist.minGap.toFixed(2)}\n`;
+                report += `Composite Score: ${dist.compositeScore.toFixed(4)}\n\n`;
+                
+                // Constraint compliance
+                report += 'CONSTRAINT COMPLIANCE:\n';
+                report += '-'.repeat(80) + '\n';
+                
+                const pctA = ((distribution[4.0] || 0) * 100);
+                const pctMiddle = (((distribution[3.0] || 0) + (distribution[3.33] || 0) + (distribution[3.67] || 0)) * 100);
+                const pctLow = (Object.keys(distribution).reduce((sum, grade) => {
+                    return parseFloat(grade) <= 2.67 ? sum + distribution[grade] : sum;
+                }, 0) * 100);
+                
+                const checkMean = dist.actualMean >= 3.2 && dist.actualMean <= 3.4;
+                const checkA = pctA >= 5 && pctA <= 30;
+                const checkMiddle = pctMiddle >= 50 && pctMiddle <= 90;
+                const checkLow = pctLow >= 5 && pctLow <= 20;
+                
+                report += `Mean Grade (3.20-3.40): ${dist.actualMean.toFixed(4)} [${checkMean ? 'PASS' : 'FAIL'}]\n`;
+                report += `A Percentage (5%-30%): ${pctA.toFixed(1)}% [${checkA ? 'PASS' : 'FAIL'}]\n`;
+                report += `Middle Percentage (50%-90%): ${pctMiddle.toFixed(1)}% [${checkMiddle ? 'PASS' : 'FAIL'}]\n`;
+                report += `Low Percentage (5%-20%): ${pctLow.toFixed(1)}% [${checkLow ? 'PASS' : 'FAIL'}]\n\n`;
+                
+                // Grade distribution
+                report += 'GRADE DISTRIBUTION:\n';
+                report += '-'.repeat(80) + '\n';
+                report += 'Grade | Count | Percentage | Cumulative %\n';
+                report += '-'.repeat(80) + '\n';
+                
+                const sortedGrades = Object.keys(distribution).map(g => parseFloat(g)).sort((a, b) => b - a);
+                let cumulative = 0;
+                sortedGrades.forEach(grade => {
+                    const count = Math.round(distribution[grade] * generatedResults.metadata.totalStudents);
+                    const pct = (distribution[grade] * 100);
+                    cumulative += pct;
+                    report += `${grade.toFixed(2).padEnd(5)} | ${count.toString().padEnd(5)} | ${pct.toFixed(1).padEnd(10)}% | ${cumulative.toFixed(1)}%\n`;
+                });
+                
+                report += '\n';
+                
+                // Grade boundaries
+                report += 'GRADE BOUNDARIES (Raw Scores):\n';
+                report += '-'.repeat(80) + '\n';
+                
+                const boundaries = [];
+                const uniqueScores = [...new Set(generatedResults.data.map(d => d.raw_score))].sort((a, b) => a - b);
+                
+                for (let i = 0; i < uniqueScores.length - 1; i++) {
+                    const currentGrade = dist.gradeAssignment[uniqueScores[i]];
+                    const nextGrade = dist.gradeAssignment[uniqueScores[i + 1]];
+                    if (currentGrade !== nextGrade) {
+                        boundaries.push({
+                            lowGrade: currentGrade,
+                            highGrade: nextGrade,
+                            lowScore: uniqueScores[i],
+                            highScore: uniqueScores[i + 1],
+                            gap: uniqueScores[i + 1] - uniqueScores[i]
+                        });
+                    }
+                }
+                
+                if (boundaries.length > 0) {
+                    report += 'Boundary transitions (low grade → high grade):\n';
+                    boundaries.forEach(b => {
+                        report += `  ${b.lowGrade.toFixed(2)} → ${b.highGrade.toFixed(2)}: `;
+                        report += `Max score ${b.lowScore.toFixed(2)} to Min score ${b.highScore.toFixed(2)} `;
+                        report += `(Gap: ${b.gap.toFixed(2)})\n`;
+                    });
+                } else {
+                    report += '  No grade boundaries (all students receive same grade)\n';
+                }
+                
+                report += '\n\n';
+            });
+            
+            // Recommendations
+            report += '='.repeat(80) + '\n';
+            report += 'RECOMMENDATIONS\n';
+            report += '='.repeat(80) + '\n\n';
+            
+            const bestDist = generatedResults.distributions[0];
+            report += `Distribution 1 is recommended as it has the highest composite score and is\n`;
+            report += `closest to your target mean of ${desiredMean.toFixed(2)}.\n\n`;
+            
+            if (bestDist.meanDeviation < 0.01) {
+                report += `Distribution 1 achieves your target mean almost exactly (deviation: ${bestDist.meanDeviation.toFixed(4)}).\n`;
+            } else if (bestDist.meanDeviation < 0.05) {
+                report += `Distribution 1 is very close to your target mean (deviation: ${bestDist.meanDeviation.toFixed(4)}).\n`;
+            } else {
+                report += `Distribution 1 has deviation of ${bestDist.meanDeviation.toFixed(4)} from target. Consider:\n`;
+                report += `  • Adjusting your target mean slightly\n`;
+                report += `  • Reviewing other distributions for better alternatives\n`;
+            }
+            
+            report += '\n';
+            
+            // Footer
+            report += '='.repeat(80) + '\n';
+            report += 'END OF REPORT\n';
+            report += '='.repeat(80) + '\n';
+            report += '\nGenerated by Grade Distribution Generator\n';
+            report += 'https://github.com/sethchandler/grade-distribution-enforcer\n';
+            
+            // Download
+            const blob = new Blob([report], { type: 'text/plain;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', 'grade_distribution_report.txt');
             link.style.visibility = 'hidden';
             document.body.appendChild(link);
             link.click();
