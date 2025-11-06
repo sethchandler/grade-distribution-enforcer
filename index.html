@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grade Distribution Generator</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .section {
+            margin-bottom: 30px;
+        }
+
+        .section-title {
+            font-size: 1.3em;
+            color: #333;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #667eea;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 500;
+        }
+
+        input[type="file"],
+        input[type="number"],
+        select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 1em;
+            transition: border-color 0.3s;
+        }
+
+        input[type="file"]:focus,
+        input[type="number"]:focus,
+        select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 14px 28px;
+            border: none;
+            border-radius: 6px;
+            font-size: 1.1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            width: 100%;
+            margin-top: 10px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .info-box {
+            background: #f0f4ff;
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+        }
+
+        .info-box h3 {
+            color: #667eea;
+            margin-bottom: 8px;
+        }
+
+        .info-box ul {
+            margin-left: 20px;
+            color: #555;
+        }
+
+        .info-box li {
+            margin-bottom: 5px;
+        }
+
+        #status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 6px;
+            display: none;
+        }
+
+        #status.success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+
+        #status.error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+
+        #status.processing {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+        }
+
+        #results {
+            margin-top: 30px;
+            display: none;
+        }
+
+        .results-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            font-size: 0.9em;
+        }
+
+        .results-table th,
+        .results-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .results-table th {
+            background: #667eea;
+            color: white;
+            font-weight: 600;
+        }
+
+        .results-table tr:hover {
+            background: #f5f5f5;
+        }
+
+        .download-section {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .download-section .btn {
+            flex: 1;
+        }
+
+        .constraint-check {
+            display: inline-block;
+            margin-left: 10px;
+            font-weight: bold;
+        }
+
+        .constraint-check.pass {
+            color: #28a745;
+        }
+
+        .constraint-check.fail {
+            color: #dc3545;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .card {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            border-left: 4px solid #667eea;
+        }
+
+        .card h4 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .card p {
+            color: #555;
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 Grade Distribution Generator</h1>
+            <p>Upload student scores and generate compliant grade distributions</p>
+        </div>
+
+        <div class="content">
+            <div class="info-box">
+                <h3>📋 Instructions</h3>
+                <ul>
+                    <li>Upload an Excel (.xlsx) or CSV file with exactly <strong>two columns</strong></li>
+                    <li>Column 1: <strong>Student ID</strong> (text or number)</li>
+                    <li>Column 2: <strong>Raw Score</strong> (number)</li>
+                    <li>The file should have a header row (e.g., "student_id", "raw_score")</li>
+                    <li>Set your desired mean grade (3.2 - 3.4) and number of distributions to generate</li>
+                </ul>
+            </div>
+
+            <div class="section">
+                <div class="section-title">1️⃣ Upload File</div>
+                <div class="form-group">
+                    <label for="fileInput">Select Excel or CSV file:</label>
+                    <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="section-title">2️⃣ Configure Parameters</div>
+                <div class="form-group">
+                    <label for="desiredMean">Desired Mean Grade (3.2 - 3.4):</label>
+                    <input type="number" id="desiredMean" min="3.2" max="3.4" step="0.01" value="3.3">
+                </div>
+                <div class="form-group">
+                    <label for="numDistributions">Number of Distributions to Generate:</label>
+                    <input type="number" id="numDistributions" min="1" max="10" value="4">
+                </div>
+                <div class="form-group">
+                    <label for="outputFormat">Output Format:</label>
+                    <select id="outputFormat">
+                        <option value="xlsx">Excel (.xlsx)</option>
+                        <option value="csv">CSV (.csv)</option>
+                    </select>
+                </div>
+            </div>
+
+            <button class="btn" id="generateBtn" disabled>Generate Grade Distributions</button>
+
+            <div id="status"></div>
+
+            <div id="results">
+                <div class="section-title">✅ Results</div>
+                <div id="resultsContent"></div>
+                <div class="download-section">
+                    <button class="btn" id="downloadBtn">Download Results</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let uploadedData = null;
+        let generatedResults = null;
+
+        const fileInput = document.getElementById('fileInput');
+        const generateBtn = document.getElementById('generateBtn');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const statusDiv = document.getElementById('status');
+        const resultsDiv = document.getElementById('results');
+        const resultsContent = document.getElementById('resultsContent');
+
+        fileInput.addEventListener('change', handleFileUpload);
+        generateBtn.addEventListener('click', generateDistributions);
+        downloadBtn.addEventListener('click', downloadResults);
+
+        function showStatus(message, type) {
+            statusDiv.textContent = message;
+            statusDiv.className = type;
+            statusDiv.style.display = 'block';
+        }
+
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            showStatus('Reading file...', 'processing');
+
+            const reader = new FileReader();
+            
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    
+                    if (file.name.endsWith('.csv')) {
+                        // Parse CSV
+                        const text = new TextDecoder().decode(data);
+                        Papa.parse(text, {
+                            header: true,
+                            dynamicTyping: true,
+                            skipEmptyLines: true,
+                            complete: function(results) {
+                                processData(results.data);
+                            },
+                            error: function(error) {
+                                showStatus('Error parsing CSV: ' + error.message, 'error');
+                            }
+                        });
+                    } else {
+                        // Parse Excel
+                        const workbook = XLSX.read(data, {type: 'array'});
+                        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                        const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+                        processData(jsonData);
+                    }
+                } catch (error) {
+                    showStatus('Error reading file: ' + error.message, 'error');
+                }
+            };
+
+            reader.readAsArrayBuffer(file);
+        }
+
+        function processData(data) {
+            if (!data || data.length === 0) {
+                showStatus('Error: File is empty', 'error');
+                return;
+            }
+
+            // Get column names (first two columns)
+            const columns = Object.keys(data[0]);
+            if (columns.length < 2) {
+                showStatus('Error: File must have at least 2 columns', 'error');
+                return;
+            }
+
+            const idColumn = columns[0];
+            const scoreColumn = columns[1];
+
+            // Validate and convert data
+            uploadedData = data.map(row => ({
+                student_id: row[idColumn],
+                raw_score: parseFloat(row[scoreColumn])
+            })).filter(row => {
+                return row.student_id !== null && 
+                       row.student_id !== undefined && 
+                       !isNaN(row.raw_score);
+            });
+
+            if (uploadedData.length === 0) {
+                showStatus('Error: No valid data found. Make sure column 2 contains numbers.', 'error');
+                return;
+            }
+
+            showStatus(`✅ Successfully loaded ${uploadedData.length} students`, 'success');
+            generateBtn.disabled = false;
+        }
+
+        function generateDistributions() {
+            if (!uploadedData) {
+                showStatus('Please upload a file first', 'error');
+                return;
+            }
+
+            const desiredMean = parseFloat(document.getElementById('desiredMean').value);
+            const numDistributions = parseInt(document.getElementById('numDistributions').value);
+
+            if (desiredMean < 3.2 || desiredMean > 3.4) {
+                showStatus('Desired mean must be between 3.2 and 3.4', 'error');
+                return;
+            }
+
+            showStatus('Generating grade distributions...', 'processing');
+            generateBtn.disabled = true;
+
+            // Use setTimeout to allow UI to update
+            setTimeout(() => {
+                try {
+                    const result = generateGradeDistributions(uploadedData, desiredMean, numDistributions);
+                    generatedResults = result;
+                    displayResults(result);
+                    showStatus(`✅ Successfully generated ${result.distributions.length} distributions`, 'success');
+                    generateBtn.disabled = false;
+                } catch (error) {
+                    showStatus('Error: ' + error.message, 'error');
+                    generateBtn.disabled = false;
+                }
+            }, 100);
+        }
+
+        function generateGradeDistributions(data, desiredMean, n) {
+            // Sort by raw score
+            const sortedData = [...data].sort((a, b) => a.raw_score - b.raw_score);
+            
+            // Get unique scores and counts
+            const uniqueScores = [...new Set(sortedData.map(d => d.raw_score))].sort((a, b) => a - b);
+            const scoreCounts = {};
+            sortedData.forEach(d => {
+                scoreCounts[d.raw_score] = (scoreCounts[d.raw_score] || 0) + 1;
+            });
+
+            const totalStudents = sortedData.length;
+            const maxAttempts = 500;
+            const validSolutions = [];
+
+            console.log(`Generating distributions for ${totalStudents} students...`);
+            console.log(`Unique scores: ${uniqueScores.length}`);
+            console.log(`Target mean: ${desiredMean}`);
+
+            for (let attempt = 0; attempt < maxAttempts; attempt++) {
+                const gradeAssignment = generateCandidateDistribution(
+                    uniqueScores, scoreCounts, totalStudents, desiredMean, attempt
+                );
+
+                if (!gradeAssignment) continue;
+
+                if (validateConstraints(gradeAssignment, scoreCounts, totalStudents)) {
+                    const actualMean = calculateMean(gradeAssignment, scoreCounts, totalStudents);
+                    const minGap = calculateMinGap(gradeAssignment, uniqueScores);
+                    const meanDeviation = Math.abs(actualMean - desiredMean);
+
+                    const maxPossibleGap = (uniqueScores[uniqueScores.length - 1] - uniqueScores[0]) / 5;
+                    const meanScore = 1 - (meanDeviation / 0.2);
+                    const gapScore = maxPossibleGap > 0 ? minGap / maxPossibleGap : 0;
+                    const compositeScore = 0.8 * meanScore + 0.2 * gapScore;
+
+                    validSolutions.push({
+                        gradeAssignment: {...gradeAssignment},
+                        actualMean,
+                        meanDeviation,
+                        minGap,
+                        compositeScore
+                    });
+                }
+
+                if (validSolutions.length >= n * 3) break;
+            }
+
+            if (validSolutions.length === 0) {
+                throw new Error('Could not find any valid distributions. Try adjusting the desired mean.');
+            }
+
+            // Sort by composite score
+            validSolutions.sort((a, b) => b.compositeScore - a.compositeScore);
+
+            // Get unique solutions
+            const uniqueSolutions = getUniqueSolutions(validSolutions, n);
+
+            // Apply grades to data
+            const resultData = sortedData.map(student => {
+                const row = {
+                    student_id: student.student_id,
+                    raw_score: student.raw_score
+                };
+                uniqueSolutions.forEach((sol, idx) => {
+                    row[`grade_${idx + 1}`] = sol.gradeAssignment[student.raw_score].toFixed(3);
+                });
+                return row;
+            });
+
+            // Sort by student_id
+            resultData.sort((a, b) => {
+                if (typeof a.student_id === 'number' && typeof b.student_id === 'number') {
+                    return a.student_id - b.student_id;
+                }
+                return String(a.student_id).localeCompare(String(b.student_id));
+            });
+
+            return {
+                data: resultData,
+                distributions: uniqueSolutions,
+                metadata: {
+                    totalStudents,
+                    uniqueScores: uniqueScores.length,
+                    desiredMean,
+                    scoreRange: [uniqueScores[0], uniqueScores[uniqueScores.length - 1]]
+                }
+            };
+        }
+
+        function generateCandidateDistribution(uniqueScores, scoreCounts, totalStudents, desiredMean, seed) {
+            const minA = Math.max(1, Math.ceil(totalStudents * 0.05));
+            const maxA = Math.floor(totalStudents * 0.30);
+            const minMiddle = Math.ceil(totalStudents * 0.50);
+            const maxMiddle = Math.floor(totalStudents * 0.90);
+            const minLow = Math.max(1, Math.ceil(totalStudents * 0.05));
+            const maxLow = Math.floor(totalStudents * 0.20);
+
+            const strategy = seed % 6;
+            let numA, numLow;
+
+            if (strategy === 0) {
+                numA = Math.floor(maxA * 0.7 + minA * 0.3);
+                numLow = minLow;
+            } else if (strategy === 1) {
+                numA = minA;
+                numLow = Math.floor(maxLow * 0.5);
+            } else if (strategy === 2) {
+                numA = Math.floor((minA + maxA) / 2);
+                numLow = Math.floor((minLow + maxLow) / 2);
+            } else if (strategy === 3) {
+                numA = minA + Math.floor(Math.random() * (maxA - minA + 1));
+                numLow = minLow + Math.floor(Math.random() * (maxLow - minLow + 1));
+            } else if (strategy === 4) {
+                if (desiredMean > 3.3) {
+                    numA = Math.floor(maxA * 0.8);
+                    numLow = minLow;
+                } else {
+                    numA = Math.floor(minA * 1.5);
+                    numLow = Math.floor(maxLow * 0.7);
+                }
+            } else {
+                return iterativeMeanTargeting(uniqueScores, scoreCounts, totalStudents, desiredMean, seed);
+            }
+
+            const numMiddle = totalStudents - numA - numLow;
+            if (numMiddle < minMiddle || numMiddle > maxMiddle) {
+                return null;
+            }
+
+            const avgLow = 2.0;
+            const middleTotalNeeded = desiredMean * totalStudents - 4.0 * numA - avgLow * numLow;
+            const avgMiddleNeeded = numMiddle > 0 ? middleTotalNeeded / numMiddle : 3.33;
+
+            let ratio367, ratio333, ratio300;
+            if (avgMiddleNeeded >= 3.5) {
+                ratio367 = 0.6; ratio333 = 0.3; ratio300 = 0.1;
+            } else if (avgMiddleNeeded >= 3.4) {
+                ratio367 = 0.4; ratio333 = 0.4; ratio300 = 0.2;
+            } else if (avgMiddleNeeded >= 3.2) {
+                ratio367 = 0.3; ratio333 = 0.4; ratio300 = 0.3;
+            } else {
+                ratio367 = 0.2; ratio333 = 0.3; ratio300 = 0.5;
+            }
+
+            const num367 = Math.round(numMiddle * ratio367);
+            const num333 = Math.round(numMiddle * ratio333);
+            const num300 = numMiddle - num367 - num333;
+
+            const gradeAssignment = {};
+            let cumulative = 0;
+
+            for (const score of uniqueScores) {
+                const count = scoreCounts[score];
+                
+                if (cumulative < numLow) {
+                    gradeAssignment[score] = 2.0;
+                } else if (cumulative < numLow + num300) {
+                    gradeAssignment[score] = 3.0;
+                } else if (cumulative < numLow + num300 + num333) {
+                    gradeAssignment[score] = 3.33;
+                } else if (cumulative < numLow + num300 + num333 + num367) {
+                    gradeAssignment[score] = 3.67;
+                } else {
+                    gradeAssignment[score] = 4.0;
+                }
+                
+                cumulative += count;
+            }
+
+            return gradeAssignment;
+        }
+
+        function iterativeMeanTargeting(uniqueScores, scoreCounts, totalStudents, desiredMean, seed) {
+            const gradeAssignment = {};
+            
+            for (let i = 0; i < uniqueScores.length; i++) {
+                const percentile = i / uniqueScores.length;
+                let grade;
+                
+                if (percentile >= 0.85) grade = 4.0;
+                else if (percentile >= 0.70) grade = 3.67;
+                else if (percentile >= 0.45) grade = 3.33;
+                else if (percentile >= 0.20) grade = 3.0;
+                else grade = 2.67;
+                
+                gradeAssignment[uniqueScores[i]] = grade;
+            }
+
+            for (let iteration = 0; iteration < 20; iteration++) {
+                const currentMean = calculateMean(gradeAssignment, scoreCounts, totalStudents);
+                
+                if (Math.abs(currentMean - desiredMean) < 0.01) break;
+                
+                if (currentMean < desiredMean) {
+                    const candidates = uniqueScores.filter(s => gradeAssignment[s] < 4.0);
+                    if (candidates.length > 0) {
+                        const idx = Math.floor(Math.random() * candidates.length);
+                        const score = candidates[idx];
+                        gradeAssignment[score] = Math.min(4.0, gradeAssignment[score] + 0.33);
+                    }
+                } else {
+                    const candidates = uniqueScores.filter(s => gradeAssignment[s] > 2.0);
+                    if (candidates.length > 0) {
+                        const idx = Math.floor(Math.random() * candidates.length);
+                        const score = candidates[idx];
+                        gradeAssignment[score] = Math.max(2.0, gradeAssignment[score] - 0.33);
+                    }
+                }
+            }
+
+            return gradeAssignment;
+        }
+
+        function validateConstraints(gradeAssignment, scoreCounts, totalStudents) {
+            const dist = getDistribution(gradeAssignment, scoreCounts, totalStudents);
+            
+            const pctA = dist[4.0] || 0;
+            if (pctA < 0.05 || pctA > 0.30) return false;
+            
+            const pctMiddle = (dist[3.0] || 0) + (dist[3.33] || 0) + (dist[3.67] || 0);
+            if (pctMiddle < 0.50 || pctMiddle > 0.90) return false;
+            
+            const pctLow = Object.keys(dist).reduce((sum, grade) => {
+                return parseFloat(grade) <= 2.67 ? sum + dist[grade] : sum;
+            }, 0);
+            if (pctLow < 0.05 || pctLow > 0.20) return false;
+            
+            const mean = calculateMean(gradeAssignment, scoreCounts, totalStudents);
+            if (mean < 3.2 || mean > 3.4) return false;
+            
+            return true;
+        }
+
+        function calculateMean(gradeAssignment, scoreCounts, totalStudents) {
+            let total = 0;
+            for (const score in gradeAssignment) {
+                total += gradeAssignment[score] * scoreCounts[score];
+            }
+            return total / totalStudents;
+        }
+
+        function getDistribution(gradeAssignment, scoreCounts, totalStudents) {
+            const dist = {};
+            for (const score in gradeAssignment) {
+                const grade = gradeAssignment[score];
+                dist[grade] = (dist[grade] || 0) + scoreCounts[score] / totalStudents;
+            }
+            return dist;
+        }
+
+        function calculateMinGap(gradeAssignment, uniqueScores) {
+            const gaps = [];
+            for (let i = 0; i < uniqueScores.length - 1; i++) {
+                const currentGrade = gradeAssignment[uniqueScores[i]];
+                const nextGrade = gradeAssignment[uniqueScores[i + 1]];
+                if (currentGrade !== nextGrade) {
+                    gaps.push(uniqueScores[i + 1] - uniqueScores[i]);
+                }
+            }
+            return gaps.length > 0 ? Math.min(...gaps) : 0;
+        }
+
+        function getUniqueSolutions(solutions, n) {
+            const unique = [];
+            const seen = new Set();
+            
+            for (const sol of solutions) {
+                const key = JSON.stringify(Object.entries(sol.gradeAssignment).sort());
+                if (!seen.has(key)) {
+                    seen.add(key);
+                    unique.push(sol);
+                    if (unique.length >= n) break;
+                }
+            }
+            
+            return unique;
+        }
+
+        function displayResults(result) {
+            let html = '<div class="grid">';
+            
+            result.distributions.forEach((dist, idx) => {
+                const distribution = getDistribution(dist.gradeAssignment, 
+                    result.data.reduce((acc, d) => {
+                        acc[d.raw_score] = (acc[d.raw_score] || 0) + 1;
+                        return acc;
+                    }, {}), 
+                    result.metadata.totalStudents);
+                
+                const pctA = ((distribution[4.0] || 0) * 100).toFixed(1);
+                const pctMiddle = (((distribution[3.0] || 0) + (distribution[3.33] || 0) + (distribution[3.67] || 0)) * 100).toFixed(1);
+                const pctLow = (Object.keys(distribution).reduce((sum, grade) => {
+                    return parseFloat(grade) <= 2.67 ? sum + distribution[grade] : sum;
+                }, 0) * 100).toFixed(1);
+                
+                const checkA = pctA >= 5 && pctA <= 30 ? '✓' : '✗';
+                const checkMiddle = pctMiddle >= 50 && pctMiddle <= 90 ? '✓' : '✗';
+                const checkLow = pctLow >= 5 && pctLow <= 20 ? '✓' : '✗';
+                const checkMean = dist.actualMean >= 3.2 && dist.actualMean <= 3.4 ? '✓' : '✗';
+                
+                html += `
+                    <div class="card">
+                        <h4>Distribution ${idx + 1}</h4>
+                        <p><strong>Mean:</strong> ${dist.actualMean.toFixed(4)} ${checkMean}</p>
+                        <p><strong>Deviation:</strong> ${dist.meanDeviation.toFixed(4)}</p>
+                        <p><strong>Min Gap:</strong> ${dist.minGap.toFixed(2)}</p>
+                        <p><strong>A (4.0):</strong> ${pctA}% ${checkA}</p>
+                        <p><strong>Middle:</strong> ${pctMiddle}% ${checkMiddle}</p>
+                        <p><strong>Low:</strong> ${pctLow}% ${checkLow}</p>
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+            
+            html += `
+                <div style="margin-top: 20px;">
+                    <h4>Preview (first 10 students):</h4>
+                    <table class="results-table">
+                        <thead>
+                            <tr>
+                                <th>Student ID</th>
+                                <th>Raw Score</th>
+                                ${result.distributions.map((_, i) => `<th>Grade ${i + 1}</th>`).join('')}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${result.data.slice(0, 10).map(row => `
+                                <tr>
+                                    <td>${row.student_id}</td>
+                                    <td>${row.raw_score.toFixed(2)}</td>
+                                    ${result.distributions.map((_, i) => `<td>${row[`grade_${i + 1}`]}</td>`).join('')}
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                    ${result.data.length > 10 ? `<p style="margin-top: 10px; color: #666;"><em>Showing 10 of ${result.data.length} students. Download to see all results.</em></p>` : ''}
+                </div>
+            `;
+            
+            resultsContent.innerHTML = html;
+            resultsDiv.style.display = 'block';
+        }
+
+        function downloadResults() {
+            if (!generatedResults) return;
+            
+            const format = document.getElementById('outputFormat').value;
+            
+            if (format === 'xlsx') {
+                downloadExcel();
+            } else {
+                downloadCSV();
+            }
+        }
+
+        function downloadExcel() {
+            const ws = XLSX.utils.json_to_sheet(generatedResults.data);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Grade Distributions');
+            XLSX.writeFile(wb, 'grade_distributions.xlsx');
+        }
+
+        function downloadCSV() {
+            const csv = Papa.unparse(generatedResults.data);
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', 'grade_distributions.csv');
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    </script>
+</body>
+</html>
